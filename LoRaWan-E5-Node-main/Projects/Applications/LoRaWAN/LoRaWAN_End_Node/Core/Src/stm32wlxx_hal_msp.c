@@ -82,18 +82,18 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
       Error_Handler();
     }
 
-    __HAL_RCC_GPIOB_CLK_ENABLE();
+   // __HAL_RCC_GPIOB_CLK_ENABLE();
     __HAL_RCC_GPIOC_CLK_ENABLE();
     /**I2C3 GPIO Configuration
-    PB4     ------> I2C3_SDA
+    PC1     ------> I2C3_SDA
     PC0     ------> I2C3_SCL
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_4;
+    GPIO_InitStruct.Pin = GPIO_PIN_1;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF4_I2C3;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
     GPIO_InitStruct.Pin = GPIO_PIN_0;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;

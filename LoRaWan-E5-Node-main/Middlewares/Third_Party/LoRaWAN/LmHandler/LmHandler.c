@@ -582,7 +582,6 @@ LmHandlerErrorStatus_t LmHandlerSend( LmHandlerAppData_t *appData, LmHandlerMsgT
     {
         return LORAMAC_HANDLER_BUSY_ERROR;
     }
-
     if( LmHandlerJoinStatus( ) != LORAMAC_HANDLER_SET )
     {
         // The network isn't joined, try again.
@@ -837,6 +836,7 @@ LmHandlerErrorStatus_t LmHandlerRequestClass( DeviceClass_t newClass )
                         if (LmHandlerCallbacks->OnClassChange != NULL)
                         {
                             LmHandlerCallbacks->OnClassChange( newClass );
+
                         }
                     }
                     else
@@ -1935,4 +1935,7 @@ static void DisplayBeaconUpdate(LmHandlerBeaconParams_t *params)
                params->Info.Rssi, params->Info.Snr);
     }
 }
+
+
 #endif /* LORAMAC_CLASSB_ENABLED == 1 */
+

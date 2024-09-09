@@ -39,8 +39,15 @@
 #include "sys_sensors.h"
 #include "stdlib.h"
 /* USER CODE BEGIN Includes */
+#include "sensors.h"
 
+/***************   FLASH_VARAIBLES SENSORS__***************/
+ uint8_t data=0,rx_data=0;
+
+ /***************   FLASH_VARAIBLES CLASSES__***************/
+ uint8_t  Read_class =0;
 /* USER CODE END Includes */
+ uint16_t mode = 1,battery = 3000, MQ6_value;
 
 /* External variables ---------------------------------------------------------*/
 /* USER CODE BEGIN EV */
@@ -72,13 +79,12 @@ typedef enum TxEventType_e
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-float Temp, Press, Hum;
+
 /* USER CODE END PD */
- int ret=2;
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+DeviceClass_t Get_class(void);
 /* USER CODE END PM */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -215,17 +221,40 @@ static UTIL_TIMER_Object_t JoinLedTimer;
 
 /* Exported functions ---------------------------------------------------------*/
 /* USER CODE BEGIN EF */
-void BME_280_Init(void)
-{
+/***********************FLASH_MEMORY***************************/
 
-	ret= BME280_Config(OSRS_2, OSRS_16, OSRS_1, MODE_NORMAL, T_SB_0p5, IIR_16);
-  //  APP_LOG(TS_ON, VLEVEL_L, "@@@@@@@ return val  : ~%d\r\n",ret );
+
+void Flash_Write_Data(uint32_t address, uint32_t data) {
+    HAL_FLASH_Unlock();
+
+    FLASH_EraseInitTypeDef eraseInit;
+    eraseInit.TypeErase = FLASH_TYPEERASE_PAGES;
+    eraseInit.Page = (address - FLASH_BASE) / FLASH_PAGE_SIZE;
+    eraseInit.NbPages = 1;
+
+    uint32_t error;
+    if(HAL_FLASHEx_Erase(&eraseInit, &error)==HAL_OK)
+    	//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, 1);
+
+    if(HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, address, data)==HAL_OK)
+    {
+    	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, 1);
+    }
+
+    HAL_FLASH_Lock();
 }
+
+uint8_t Flash_Read_Data(uint32_t address)
+{
+      return *(__IO uint8_t*)address;
+}
+/***********************FLASH_MEMORY***************************/
 /* USER CODE END EF */
 
 void LoRaWAN_Init(void)
 {
   /* USER CODE BEGIN LoRaWAN_Init_1 */
+
 
   BSP_LED_Init(LED_RED);
 
@@ -246,12 +275,13 @@ void LoRaWAN_Init(void)
           (uint8_t)(__SUBGHZ_PHY_VERSION >> __APP_VERSION_MAIN_SHIFT),
           (uint8_t)(__SUBGHZ_PHY_VERSION >> __APP_VERSION_SUB1_SHIFT),
           (uint8_t)(__SUBGHZ_PHY_VERSION >> __APP_VERSION_SUB2_SHIFT));
+
   UTIL_TIMER_Create(&TxLedTimer, 0xFFFFFFFFU, UTIL_TIMER_ONESHOT, OnTxTimerLedEvent, NULL);
   UTIL_TIMER_Create(&RxLedTimer, 0xFFFFFFFFU, UTIL_TIMER_ONESHOT, OnRxTimerLedEvent, NULL);
   UTIL_TIMER_Create(&JoinLedTimer, 0xFFFFFFFFU, UTIL_TIMER_PERIODIC, OnJoinTimerLedEvent, NULL);
   UTIL_TIMER_SetPeriod(&TxLedTimer, 500);
   UTIL_TIMER_SetPeriod(&RxLedTimer, 500);
-  UTIL_TIMER_SetPeriod(&JoinLedTimer,500);
+  UTIL_TIMER_SetPeriod(&JoinLedTimer, 500);
 
   /* USER CODE END LoRaWAN_Init_1 */
 
@@ -262,7 +292,9 @@ void LoRaWAN_Init(void)
 
   /* Init the Lora Stack*/
   LmHandlerInit(&LmHandlerCallbacks);
-
+  Read_class = Flash_Read_Data(0x0803F000);
+  if((Read_class != LORAWAN_DEFAULT_CLASS) && (Read_class != 0xFF))
+	  LmHandlerParams.DefaultClass = Read_class;
   LmHandlerConfigure(&LmHandlerParams);
 
   /* USER CODE BEGIN LoRaWAN_Init_2 */
@@ -325,12 +357,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 static void OnRxData(LmHandlerAppData_t *appData, LmHandlerRxParams_t *params)
 {
   /* USER CODE BEGIN OnRxData_1 */
-	uint8_t *Rx_Ptr = NULL,i=0,Buff_size=0;
-	Rx_Ptr = appData->Buffer;
-	Buff_size = appData->BufferSize;
+
+	int i=0;
   if ((appData != NULL) || (params != NULL))
   {
-
+	UTIL_TIMER_SetPeriod(&RxLedTimer, 2000);
     UTIL_TIMER_Start(&RxLedTimer);
 
     static const char *slotStrings[] = { "1", "2", "C", "C Multicast", "B Ping-Slot", "B Multicast Ping-Slot" };
@@ -338,6 +369,15 @@ static void OnRxData(LmHandlerAppData_t *appData, LmHandlerRxParams_t *params)
     APP_LOG(TS_OFF, VLEVEL_M, "\r\n###### ========== MCPS-Indication ==========\r\n");
     APP_LOG(TS_OFF, VLEVEL_M, "###### D/L FRAME:%04d | SLOT:%s | PORT:%d | DR:%d | RSSI:%d | SNR:%d\r\n",
             params->DownlinkCounter, slotStrings[params->RxSlot], appData->Port, params->Datarate, params->Rssi, params->Snr);
+    APP_LOG(TS_OFF, VLEVEL_M, "Data = %d\r\n",appData->Buffer[0] );
+    data=appData->Buffer[0];
+    if(data == ACTIVATE_BME || data == ACTIVATE_DHT11 || data == ACTIVATE_DS18B20 || data == ACTIVATE_MQ6 )
+    {
+        Flash_Write_Data(0x0803F800, data);
+    }
+    rx_data = Flash_Read_Data(0x0803F800);
+    APP_LOG(TS_OFF, VLEVEL_M,"MEMORY_DATA : %X\n\r",  rx_data);
+
     switch (appData->Port)
     {
       case LORAWAN_SWITCH_CLASS_PORT:
@@ -347,31 +387,36 @@ static void OnRxData(LmHandlerAppData_t *appData, LmHandlerRxParams_t *params)
           switch (appData->Buffer[0])
           {
             case 0:
-            {
+              APP_LOG(TS_OFF, VLEVEL_M,"#####CLASS_A######\n\r");
+              Flash_Write_Data(0x0803F000,CLASS_A);
               LmHandlerRequestClass(CLASS_A);
+              LmHandlerParams.DefaultClass = CLASS_A;
               break;
-            }
-            case 1:
-            {
-              LmHandlerRequestClass(CLASS_B);
-              break;
-            }
-            case 2:
-            {
-              LmHandlerRequestClass(CLASS_C);
-              break;
-            }
 
+            case 1:
+              APP_LOG(TS_OFF, VLEVEL_M,"#####CLASS_B######\n\r");
+              Flash_Write_Data(0x0803F000,CLASS_B);
+              LmHandlerRequestClass(CLASS_B);
+              LmHandlerParams.DefaultClass = CLASS_B;
+              break;
+
+            case 2:
+              APP_LOG(TS_OFF, VLEVEL_M,"#####CLASS_C######\n\r");
+              Flash_Write_Data(0x0803F000,CLASS_C);
+              LmHandlerRequestClass(CLASS_C);
+              LmHandlerParams.DefaultClass = CLASS_C;
+              break;
+            default:
+              break;
           }
         }
         break;
       case LORAWAN_USER_APP_PORT:
     	  APP_LOG(TS_OFF, VLEVEL_M,"Port = : %d\n\r",appData->Port);
-    	  for(i=0;i<=appData->BufferSize;i++)
-    	  {
-    		  APP_LOG(TS_OFF, VLEVEL_M,"Rx_Data[%d] : %X\n\r",i,  appData->Buffer[i]);
-
-    	  }
+    	   for(i=0;i<appData->BufferSize;i++)
+    	   {
+    	       APP_LOG(TS_OFF, VLEVEL_M,"Received_Data[%d] : %X\n\r",i,  appData->Buffer[i]);
+    	   }
 
         break;
 
@@ -379,50 +424,34 @@ static void OnRxData(LmHandlerAppData_t *appData, LmHandlerRxParams_t *params)
 
         break;
     }
-  //  UTIL_TIMER_Stop(&RxLedTimer);
   }
   /* USER CODE END OnRxData_1 */
 }
 
 static void SendTxData(void)
 {
+
   /* USER CODE BEGIN SendTxData_1 */
-
-  uint16_t i = 0, Tx_temp=0, Tx_press=0, Tx_hum=0;
-
+  uint16_t i = 0;
+  SensorDataTypedef SensorData;
   UTIL_TIMER_Time_t nextTxIn = 0;
-  uint8_t temp_val[7], press_val[7], Hum_val[7] ;
-  uint16_t Battery = 3000, mode = 1 ;
-
-
-  int  value=BME280_Measure();
-
-  Tx_temp=Temp*100;
-  Tx_press = (Press / 1000) *100;   //pressure in pascal converted to kilo pascal
-  Tx_hum = Hum *100;
-  if(value==0)
-    {
-	  gcvt(Temp,7,temp_val);
-  	  APP_LOG(TS_ON, VLEVEL_L, "@@@@@@@ sens_Temp  : ~%s\r\n",temp_val);
-  	  gcvt(Press,7,press_val);
-  	  APP_LOG(TS_ON, VLEVEL_L, "@@@@@@@ sens_Press  : ~%s\r\n",press_val );
-  	  gcvt(Hum,7,Hum_val);
-  	  APP_LOG(TS_ON, VLEVEL_L, "@@@@@@@ sens_Hum  : ~%s\r\n",Hum_val );
-    }
-
+  Get_sensor_values(&SensorData,rx_data);
+  DeviceClass_t Present_class;
+  Present_class =  Get_class();
+  APP_LOG(TS_OFF, VLEVEL_M,"PRESENT CLASS : %X\n\r",  Present_class);
 #ifdef CAYENNE_LPP
   uint8_t channel = 0;
 #else
-
+//  uint16_t humidity = 0;
+//  int32_t latitude = 0;
+//  int32_t longitude = 0;
+//  uint16_t altitudeGps = 0;
 #endif /* CAYENNE_LPP */
 
-
- // EnvSensors_Read(&sensor_data);
-  //temperature = (SYS_GetTemperatureLevel() >> 8);
+//  EnvSensors_Read(&sensor_data);
+// temperature = (SYS_GetTemperatureLevel() >> 8);
 //  pressure    = (uint16_t)(sensor_data.pressure * 100 / 10);      /* in hPa / 10 */
 
-
- // Battery = SYS_GetBatteryLevel();
   AppData.Port = LORAWAN_USER_APP_PORT;
 
 #ifdef CAYENNE_LPP
@@ -441,18 +470,28 @@ static void SendTxData(void)
   CayenneLppCopy(AppData.Buffer);
   AppData.BufferSize = CayenneLppGetSize();
 #else  /* not CAYENNE_LPP */
-  //humidity    = (uint16_t)(sensor_data.humidity * 10);            /* in %*10     */
+//  humidity    = (uint16_t)(sensor_data.humidity * 10);            /* in %*10     */
+//  AppData.Buffer[i++] = AppLedStateOn;
 
   AppData.Buffer[i++] = mode;
-  AppData.Buffer[i++] = (uint8_t)((Battery >> 8) & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)(Battery & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)((Tx_temp >> 8) & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)(Tx_temp & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)((Tx_hum >> 8) & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)(Tx_hum & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)((Tx_press >> 8) & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)(Tx_press & 0xFF);
+  AppData.Buffer[i++] = (uint8_t)((battery >> 8) & 0xFF);
+  AppData.Buffer[i++] = (uint8_t)(battery & 0xFF);
+  AppData.Buffer[i++] = (uint8_t)((SensorData.Sens_Temperature >> 8) & 0xFF);
+  AppData.Buffer[i++] = (uint8_t)(SensorData.Sens_Temperature & 0xFF);
+  AppData.Buffer[i++] = (uint8_t)((SensorData.Sens_Humidity >> 8) & 0xFF);
+  AppData.Buffer[i++] = (uint8_t)(SensorData.Sens_Humidity & 0xFF);
+  AppData.Buffer[i++] = (uint8_t)((SensorData.Sens_Pressure >> 8) & 0xFF);
+  AppData.Buffer[i++] = (uint8_t)(SensorData.Sens_Pressure & 0xFF);
 
+
+  if ((LmHandlerParams.ActiveRegion == LORAMAC_REGION_US915) || (LmHandlerParams.ActiveRegion == LORAMAC_REGION_AU915)
+      || (LmHandlerParams.ActiveRegion == LORAMAC_REGION_AS923))
+  {
+    AppData.Buffer[i++] = 0;
+    AppData.Buffer[i++] = 0;
+    AppData.Buffer[i++] = 0;
+    AppData.Buffer[i++] = 0;
+  }
   AppData.BufferSize = i;
 #endif /* CAYENNE_LPP */
 
@@ -512,19 +551,18 @@ static void OnTxData(LmHandlerTxParams_t *params)
       UTIL_TIMER_Start(&TxLedTimer);
 
       APP_LOG(TS_OFF, VLEVEL_M, "\r\n###### ========== MCPS-Confirm =============\r\n");
-      APP_LOG(TS_OFF, VLEVEL_M, "###### U/L FRAME:%04d | PORT:%d | DR:%d | PWR:%d", params->UplinkCounter,
+      APP_LOG(TS_OFF, VLEVEL_H, "###### U/L FRAME:%04d | PORT:%d | DR:%d | PWR:%d", params->UplinkCounter,
               params->AppData.Port, params->Datarate, params->TxPower);
 
-      APP_LOG(TS_OFF, VLEVEL_M, " | MSG TYPE:");
+      APP_LOG(TS_OFF, VLEVEL_H, " | MSG TYPE:");
       if (params->MsgType == LORAMAC_HANDLER_CONFIRMED_MSG)
       {
-        APP_LOG(TS_OFF, VLEVEL_M, "CONFIRMED [%s]\r\n", (params->AckReceived != 0) ? "ACK" : "NACK");
+        APP_LOG(TS_OFF, VLEVEL_H, "CONFIRMED [%s]\r\n", (params->AckReceived != 0) ? "ACK" : "NACK");
       }
       else
       {
-        APP_LOG(TS_OFF, VLEVEL_M, "UNCONFIRMED\r\n");
+        APP_LOG(TS_OFF, VLEVEL_H, "UNCONFIRMED\r\n");
       }
-      UTIL_TIMER_Stop(&TxLedTimer);
     }
   }
   /* USER CODE END OnTxData_1 */
@@ -570,4 +608,19 @@ static void OnMacProcessNotify(void)
   /* USER CODE END OnMacProcessNotify_2 */
 }
 
+DeviceClass_t Get_class(void)
+{
+	if(LmHandlerParams.DefaultClass == 0x00)
+	{
+		return CLASS_A;
+	}
+	else if(LmHandlerParams.DefaultClass == 0x01)
+	{
+		return CLASS_B;
+	}
+	else if(LmHandlerParams.DefaultClass == 0x02)
+	{
+		return CLASS_C;
+	}
+}
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

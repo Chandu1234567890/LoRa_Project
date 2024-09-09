@@ -20,10 +20,12 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "app_lorawan.h"
-#include "lora_app.h"
+#include "stdio.h"
+//#include "lora_app.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "sensors.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,26 +43,22 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+//extern UART_HandleTypeDef huart1;
 extern I2C_HandleTypeDef hi2c3;
 /* USER CODE BEGIN PV */
-uint8_t tx_data[15]="Hello world\n\r";
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-static void MX_I2C3_Init(void);
 static void MX_GPIO_Init(void);
-/* USER CODE BEGIN PFP */
+static void MX_I2C3_Init(void);
 
+#define DS18B20_PORT    				GPIOB
+#define DS18B20_PIN						GPIO_PIN_7
+//#define RESOLUTION_FACTOR_FOR_12_BIT	0.0625
 /* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
-/**
-  * @brief  The application entry point.
+  /* @brief  The application entry point.
   * @retval int
   */
 int main(void)
@@ -80,15 +78,22 @@ int main(void)
 
   /* Configure the system clock */
   SystemClock_Config();
-  /* USER CODE BEGIN SysInit */
   MX_GPIO_Init();
+  //Tim1_Config();
+  /* USER CODE BEGIN SysInit */
   MX_I2C3_Init();
   /* USER CODE END SysInit */
+
   /* Initialize all configured peripherals */
   MX_LoRaWAN_Init();
+
   /* USER CODE BEGIN 2 */
   BME_280_Init();
+
+
   /* USER CODE END 2 */
+
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -96,11 +101,31 @@ int main(void)
     /* USER CODE END WHILE */
     MX_LoRaWAN_Process();
 
-    /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
+static void MX_GPIO_Init(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+/* USER CODE BEGIN MX_GPIO_Init_1 */
+/* USER CODE END MX_GPIO_Init_1 */
 
+  /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(DS18B20_PORT,GPIO_PIN_4|GPIO_PIN_7 ,0);
+
+  /*Configure GPIO pin : PB4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4 | GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+/* USER CODE BEGIN MX_GPIO_Init_2 */
+/* USER CODE END MX_GPIO_Init_2 */
+}
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -167,14 +192,12 @@ static void MX_I2C3_Init(void)
   {
     Error_Handler();
   }
-
   /** Configure Analogue filter
   */
   if (HAL_I2CEx_ConfigAnalogFilter(&hi2c3, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
   {
     Error_Handler();
   }
-
   /** Configure Digital filter
   */
   if (HAL_I2CEx_ConfigDigitalFilter(&hi2c3, 0) != HAL_OK)
@@ -184,37 +207,8 @@ static void MX_I2C3_Init(void)
   /* USER CODE BEGIN I2C3_Init 2 */
 
   /* USER CODE END I2C3_Init 2 */
-
-}
-
-static void MX_GPIO_Init(void)
-{
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
-
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3|GPIO_PIN_13, GPIO_PIN_RESET);
-
-  /*Configure GPIO pins : PB3 PB13 */
-
-
-  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_13;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
 }
 /* USER CODE END 4 */
-
 
 /**
   * @brief  This function is executed in case of error occurrence.
@@ -251,4 +245,4 @@ void assert_failed(uint8_t *file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+

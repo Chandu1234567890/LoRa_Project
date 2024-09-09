@@ -68,6 +68,7 @@ extern ADC_HandleTypeDef hadc;
   */
 static uint32_t ADC_ReadChannels(uint32_t channel);
 
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -178,6 +179,7 @@ uint16_t SYS_GetBatteryLevel(void)
 
 /* Private Functions Definition -----------------------------------------------*/
 /* USER CODE BEGIN PrFD */
+
 
 /* USER CODE END PrFD */
 

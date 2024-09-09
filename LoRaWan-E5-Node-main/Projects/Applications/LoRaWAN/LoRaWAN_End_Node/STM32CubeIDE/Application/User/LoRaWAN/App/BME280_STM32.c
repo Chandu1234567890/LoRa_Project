@@ -19,8 +19,9 @@
 */
 
 //#include "BME280_STM32.h"
-#include "lora_app.h"
+//#include "lora_app.h"
 #include "main.h"
+#include "sensors.h"
 I2C_HandleTypeDef hi2c3;
 #define BME280_I2C &hi2c3
 
@@ -47,6 +48,14 @@ int16_t  dig_T2, dig_T3, \
 
 
 // Read the Trimming parameters saved in the NVM ROM of the device
+void BME_280_Init(void)
+{
+	int ret=0;
+	ret= BME280_Config(OSRS_2, OSRS_16, OSRS_1, MODE_NORMAL, T_SB_0p5, IIR_16);
+  //  APP_LOG(TS_ON, VLEVEL_L, "@@@@@@@ return val  : ~%d\r\n",ret );
+}
+
+
 void TrimRead(void)
 {
 	uint8_t trimdata[32];
